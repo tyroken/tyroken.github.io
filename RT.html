@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Fun?</title>
-    <link rel="stylesheet" href="rt.css"
+    <link rel="stylesheet" href="rt.css">
   </head>
   <body>
     <script src="https://unpkg.com/vue@3"></script>
@@ -14,7 +14,7 @@
             <input type="checkbox" :id="competitor.name" :value="competitor.name" v-model="checkedCompetitors">
             <label :for="competitor.name">{{ competitor.name }}</label>
           </div>
-          <button @click="addToCurrent"></button>
+          <button @click="addToCurrent">Add to current run</button>
         </div>
         
         <input type="text" v-model="currentName">
