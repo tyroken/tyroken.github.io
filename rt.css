@@ -39,6 +39,7 @@ label {
 
 .competitors {
   display: flex;
+  flex-wrap: wrap;
 }
 
 .competitors > div {
