@@ -3,18 +3,17 @@
   --test-color: #541a5f;
 }
 
-body {
-  width: 100%;
-  height: 100%;
+body {  
   background-color: var(--main-bg-color);
-  margin: 5rem 0 0 5rem;
+  padding: 1rem;
   font-size: 25px;
+  margin: 0;
 }
 
 input, button {
-  height: 4rem;
   vertical-align: middle;
   margin-right: 20px;
+  font-size: 25px;
 }
 
 input[type=checkbox] {
@@ -26,10 +25,33 @@ label {
   vertical-align: middle;
 }
 
+.box {
+  box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
+  padding: 10px;
+  margin: 10px 0px;
+}
+
 .competitors {
   display: flex;
 }
 
 .competitors > div {
   margin-right: 25px;
+  box-shadow: inset
+}
+
+.competitors > .box > div {
+  margin-bottom: 20px;
+}
+
+.right {
+  float: right;
+}
+
+.timer {
+  margin-right: 25px;
+}
+
+th, td {
+  border: 1px solid black
 }

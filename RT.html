@@ -8,22 +8,76 @@
     <script src="https://unpkg.com/vue@3"></script>
 
     <div id="app">
-      <div class="topContainer">
-        <div class="competitors">
+      <div class="box">
+        <div v-if="competitors.length" class="competitors box">
           <div v-for="competitor in competitors">
-            <input type="checkbox" :id="competitor.name" :value="competitor.name" v-model="checkedCompetitors">
-            <label :for="competitor.name">{{ competitor.name }}</label>
+            <span>{{ competitor.name }}</span>
           </div>
-          <button @click="addToCurrent">Add to current run</button>
         </div>
         
         <input type="text" v-model="currentName">
         <button @click="addCompetitor">Lägg till deltagare</button>
+        <button @click="resetStorage" class="right">Reset</button>
       </div>
+      Regler: Varje omgång får den som kommer sist 1 poäng, nästsist 2 poäng o.s.v. till den som kommer 2a som får 2 poäng mer än 3an och 1an ytterligare 2 poäng mer än 2an.
 
-      <div class="main">
+      <div class="box">
+        <h2>Strandutmaningen</h2>
+        <p>Max 5 stycken tävlar samtidigt. Stå på rätt sida konerna. Dra till dig spannen, om locket trillar av spannen 
+          så måste man springa fram, fylla spannen med sand och sätta fast locket igen, springa tillbaka och fortsätta dra.
+          När spannen är förbi konerna, gräv fram 6 röda bollar från spannen. Spring med max 2 bollar i taget över till andra 
+          sidorna (där spannen var innan du drog den till dig). Spring tillbaka och hämta nästa 2 bollar, och en gång till tills 
+          alla bollar är på andra sidan.
+          Spannen ska nu stå rakt upp. Försök kasta bollarna i spannen, en och en. Stannar inte bollen i spannen tidstillägg med 15 sek per boll.
+          När du är färdig, spring i mål (konerna vid sidan) och ropa ditt namn.
+          Bäst tid vinner över alla heat, 1 bonuspoäng till vinnaren i varje omgång.
+        </p>
         <div>
-
+          <h3>Resultat (än så länge)</h3>
+          <table v-if="sandRunResult.length">
+            <tr><th>Namn</th><th>Omgång</th><th>Tid</th><th>Tidstillägg</th><th>Totaltid</th><th>Poäng</th></tr>
+            <tr v-for="result in sandRunResult">
+              <td>{{ result.competitor }}</td>
+              <td>{{ result.run }}</td>
+              <td>{{ formatTime(result.timeInSeconds) }}</td>
+              <td>{{ formatTime(result.timeAdditionInSeconds) }}</td>
+              <td>{{ formatTime(result.totalTimeInSeconds) }}</td>
+              <td>{{ result.score }}</td>
+            </tr>
+          </table>
+        </div>
+        <div v-if="currentSandRun.length">
+          <h3>Nuvarande omgång</h3>
+          <div>
+            <button v-if="!sandRunOngoing" @click="startSandRun">Starta för alla</button>
+            <span>{{ formatTime(timerTimeElapsed) }}</span>
+            
+            <div class="competitors">
+              <div v-for="csr in currentSandRun" class="box" :key="csr.key">
+                <div>{{ csr.competitor }}</div>
+                <div>
+                  {{ formatTimeForCompetitor(csr) }}
+                  <button @click="startStopTimerForCompetitor(csr.competitor)">Stoppa/Starta</button>
+                </div>
+                <div>
+                  Missade bollar: {{ csr.missedBalls }}
+                  <button @click="changeMissedBall(csr.competitor, +1)">+1</button>
+                  <button @click="changeMissedBall(csr.competitor, -1)">-1</button>
+                </div>
+              </div>
+            </div>
+            
+            <button @click="finishCurrentRun">Avsluta omgång</button>
+          </div>
+        </div>
+        <div>
+          <div v-if="possibleSandRunCompetitors.length" class="competitors">
+            <div v-for="competitor in possibleSandRunCompetitors">
+              <input type="checkbox" :id="competitor.name" :value="competitor.name" v-model="checkedCompetitors">
+              <label :for="competitor.name">{{ competitor.name }}</label>
+            </div>
+            <button @click="addToCurrentRun">Lägg till till omgång</button>
+          </div>
         </div>
       </div>
     </div>
@@ -36,17 +90,67 @@
           return {
             currentName: null,
             checkedCompetitors: [],
-            storageSaveCounter: 0 // partly to get computed properties to updates
+            storageSaveCounter: 0, // partly to get computed properties to updates
+            defaultObject: {
+              competitors: [],
+              sandRun: { 
+                results: [],
+                current: [],
+                runsSofar: 0,
+                timeStarted: null
+              }
+            },
+            timerTimeElapsed: 0,
+            timerUpdateInterval: null
           }
         },
         computed: {
           competitors() {
             return this.getStorage()?.competitors ?? []
+          },
+          possibleSandRunCompetitors() {
+            const competitorsNA = new Set(this.getStorage()?.sandRun?.results.map(r => r.competitor))
+            return this.competitors.filter(c => !competitorsNA.has(c.name))
+          },
+          sandRunResult() {
+            const computedResults = this.getStorage()?.sandRun?.results.map(r => {
+              const timeInSeconds = this.calculateTimeInSeconds(r.startTimes, r.endTimes)
+              const timeAdditionInSeconds = r.missedBalls*15
+              return {
+                competitor: r.competitor,
+                run: r.run,
+                timeInSeconds,
+                timeAdditionInSeconds,
+                totalTimeInSeconds: timeInSeconds + timeAdditionInSeconds,
+              }
+            })
+            const sortedResults = computedResults.sort((a,b) => a.totalTimeInSeconds - b.totalTimeInSeconds)
+            return this.addScores(sortedResults)
+          },
+          currentTimer() {
+            let timeElapsed = 0
+            if (currentTimerStartTimes.length > 0) {
+              if (currentTimerRunning) {
+                timeElapsed = this.calculateTimeInSeconds(currentTimerStartTimes, [...currentTimerEndTimes, new Date().getTime()])
+              } else {
+                timeElapsed = this.calculateTimeInSeconds(currentTimerStartTimes, currentTimerEndTimes)
+              }
+            }
+            return this.formatTime(timeElapsed)
+          },
+          currentTimerRunning() {
+            return (this.currentTimerStartTimes.length > this.currentTimerEndTimes.length) > 0
+          },
+          currentSandRun() {
+            return this.getStorage().sandRun.current
+          },
+          sandRunOngoing() {
+            return this.getStorage().sandRun.timeStarted !== null
           }
         },
         methods: {
           getStorage() {
-            return this.storageSaveCounter >= 0 && JSON.parse(localStorage.getItem('RT') ?? '{ "competitors": [] }')
+            return this.storageSaveCounter >= 0 && JSON.parse(localStorage.getItem('RT') ?? JSON.stringify(this.defaultObject))
           },
           saveStorage(rt) {
             localStorage.setItem('RT', JSON.stringify(rt))
@@ -58,6 +162,105 @@
             this.currentName = null
             this.saveStorage(rt)
           },
+          resetStorage () {
+            const result = confirm('Är du säker?')
+            if (result) { 
+              this.saveStorage(this.defaultObject)
+            }
+          },
+          addToCurrentRun () {
+            const rt = this.getStorage()
+            const run = rt.sandRun.runsSofar+1
+            console.log('ch', this.checkedCompetitors)
+            for (const checkedCompetitor of this.checkedCompetitors) {
+              rt?.sandRun?.current.push({ 
+                competitor: checkedCompetitor,
+                startTimes: [],
+                endTimes: [],
+                missedBalls: 0,
+                run,
+                // key: 'checkedCompetitor1'
+              })
+            }
+            this.saveStorage(rt)
+          },
+          finishCurrentRun() {
+            const rt = this.getStorage()
+            rt.sandRun.results = rt.sandRun.results.concat(rt.sandRun.current)
+            rt.sandRun.current = []
+            rt.sandRun.runsSofar += 1
+            rt.sandRun.timeStarted = null
+            clearInterval(this.timerUpdateInterval)
+            this.timerUpdateInterval = null
+            this.timerTimeElapsed = 0
+            this.checkedCompetitors = []
+            this.saveStorage(rt)
+          },
+          calculateTimeInSeconds(startTimes, endTimes) {
+            if (startTimes.length !== endTimes.length) alert('wth, startTimes and endTimes not the same length')
+            let timeInSeconds = 0
+            for (let i =0;i<startTimes.length;i++) {
+              timeInSeconds += (endTimes[i]-startTimes[i])/1000
+            }
+            return timeInSeconds
+          },
+          formatTime(timeInSeconds) {
+            const minutes = Math.floor(timeInSeconds / 60)
+            const seconds = Math.floor(timeInSeconds-minutes * 60)
+            const milliSeconds = Math.round((timeInSeconds-Math.floor(timeInSeconds))*100)
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliSeconds}`
+          },
+          addScores(sortedArray) {
+            let scoresGiven = 0
+            let currScoreToGive = sortedArray.length+2
+            const nextScore = () => {
+              if (scoresGiven > 2) currScoreToGive -= 1
+              else if (scoresGiven !== 0) currScoreToGive -= 2
+              scoresGiven++
+              return currScoreToGive
+            }
+
+            for (const obj of sortedArray) {
+              obj.score = nextScore()
+            }
+            return sortedArray
+          },
+          startSandRun() {
+            const now = new Date().getTime()
+            const rt = this.getStorage()
+            for (const cur of rt.sandRun.current) {
+              cur.startTimes.push(now)
+            }
+            rt.sandRun.timeStarted = new Date().getTime()
+            this.timerUpdateInterval = setInterval(() => {
+              this.timerTimeElapsed = (new Date().getTime() - rt.sandRun.timeStarted) / 1000
+            }, 100)
+            this.saveStorage(rt)
+          },
+          formatTimeForCompetitor(csr) {
+            let endTimes = csr.endTimes
+            if (csr.startTimes.length > csr.endTimes.length) {
+              endTimes = [...csr.endTimes, new Date().getTime()]
+            }
+            return this.formatTime(this.calculateTimeInSeconds(csr.startTimes, endTimes))
+          },
+          startStopTimerForCompetitor(name) {
+            const now = new Date().getTime()
+            const rt = this.getStorage()
+            const curr = rt.sandRun.current.find(c => c.competitor === name)
+            if (curr.startTimes.length > curr.endTimes.length) {
+              curr.endTimes.push(now)
+            } else {
+              curr.startTimes.push(now)
+            }
+            this.saveStorage(rt)
+          },
+          changeMissedBall(name, count) {
+            const rt = this.getStorage()
+            const curr = rt.sandRun.current.find(c => c.competitor === name)
+            curr.missedBalls += count
+            this.saveStorage(rt)
+          }
         }
       }).mount('#app')
     </script>
