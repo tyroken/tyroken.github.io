@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Fun?</title>
-    <link rel="stylesheet" href="rt.css?index=2">
+    <link rel="stylesheet" href="rt.css?index=3">
   </head>
   <body>
     <script src="https://unpkg.com/vue@3"></script>
@@ -85,7 +85,8 @@
             <button @click="finishCurrentRun">Avsluta omgång</button>
           </div>
         </div>
-        <div>
+        <hr>
+        <div style="margin-top: 20px">
           <div v-if="possibleSandRunCompetitors.length" class="competitors">
             <div v-for="competitor in possibleSandRunCompetitors">
               <input type="checkbox" :id="competitor.name" :value="competitor.name" v-model="checkedCompetitors">
