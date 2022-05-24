@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Fun?</title>
-    <link rel="stylesheet" href="rt.css?index=1">
+    <link rel="stylesheet" href="rt.css?index=2">
   </head>
   <body>
     <script src="https://unpkg.com/vue@3"></script>
@@ -20,6 +20,21 @@
         <button @click="resetStorage" class="right">Reset</button>
       </div>
       Regler: Varje omgång får den som kommer sist 1 poäng, nästsist 2 poäng o.s.v. till den som kommer 2a som får 2 poäng mer än 3an och 1an ytterligare 2 poäng mer än 2an.
+
+      <div class="box">
+        <h2>Resultat</h2>
+        <table v-if="combinedResult.length">
+          <tr><th>Placering</th><th>Namn</th><th>Strandutmaning</th><th>Memorymatte</th><th>Frågesport</th><th>Totalpoäng</th></tr>
+          <tr v-for="(result, index) in combinedResult">
+            <td>{{ index+1 }}</td>
+            <td>{{ result.competitor }}</td>
+            <td>{{ result.sandRun }}</td>
+            <td>{{ result.memoryMath }}</td>
+            <td>{{ result.kahoot }}</td>
+            <td>{{ result.totalPoints }}</td>
+          </tr>
+        </table>
+      </div>
 
       <div class="box">
         <h2>Strandutmaningen</h2>
@@ -80,6 +95,45 @@
           </div>
         </div>
       </div>
+      <div class="box">
+        <h2>Memorymatte</h2>
+        <p>Räkna antal röda duplo-bitar, bestick (spelar ingen roll om det är (kniv, gaffel eller sked) och röda bollar. Kom ihåg hur många av varje, när ni tror er veta antalet.
+          Ställ er vid konen i kö (i ordning som ni kom dit) Jag ger er en matte-formel med dessa. Svarar ni rätt är ni klara. Svarar ni fel, får ni en ledtråd av mig vad som var fel 
+          och sen räkna om.
+        </p>
+        <div>
+          <h3>Resultat (än så länge)</h3>
+          <table v-if="memoryMathResult.length">
+            <tr><th>Namn</th><th>Färdig (tid)</th><th>Poäng</th></tr>
+            <tr v-for="result in memoryMathResult">
+              <td>{{ result.competitor }}</td>
+              <td>{{ new Date(result.time).toLocaleTimeString() }}</td>
+              <td>{{ result.score }}</td>
+            </tr>
+          </table>
+        </div>
+        <div>
+          <button v-for="competitor in memoryMathCompetitors" @click="finishMemoryMath(competitor.name)">{{ competitor.name }}</button>
+        </div>
+      </div>
+      <div class="box">
+        <h2>Frågesport</h2>
+        <p>Kahoot, flest poäng vinner. Om man inte har mobil så kan man svara med papper och penna.
+          Rätt svar: 500 poäng
+        <div>
+          <h3>Resultat</h3>
+          <table v-if="kahootResult.length">
+            <tr><th>Namn</th><th>Poäng</th></tr>
+            <tr v-for="result in kahootResult">
+              <td>{{ result.competitor }}</td>
+              <td>{{ result.score }}</td>
+            </tr>
+          </table>
+        </div>
+        <div>
+          <button v-for="competitor in kahootCompetitors" @click="finishKahoot(competitor.name)">{{ competitor.name }}</button>
+        </div>
+      </div>
     </div>
     
     <script>
@@ -98,6 +152,12 @@
                 current: [],
                 runsSofar: 0,
                 timeStarted: null
+              },
+              memoryMath: {
+                results: [],
+              },
+              kahoot: {
+                results: []
               }
             },
             timerTimeElapsed: 0,
@@ -110,6 +170,14 @@
           },
           possibleSandRunCompetitors() {
             const competitorsNA = new Set(this.getStorage()?.sandRun?.results.map(r => r.competitor))
+            return this.competitors.filter(c => !competitorsNA.has(c.name))
+          },
+          memoryMathCompetitors() {
+            const competitorsNA = new Set(this.getStorage()?.memoryMath?.results.map(r => r.competitor))
+            return this.competitors.filter(c => !competitorsNA.has(c.name))
+          },
+          kahootCompetitors() {
+            const competitorsNA = new Set(this.getStorage()?.kahoot?.results.map(r => r.competitor))
             return this.competitors.filter(c => !competitorsNA.has(c.name))
           },
           sandRunResult() {
@@ -126,6 +194,32 @@
             })
             const sortedResults = computedResults.sort((a,b) => a.totalTimeInSeconds - b.totalTimeInSeconds)
             return this.addScores(sortedResults)
+          },
+          memoryMathResult() {
+            const sortedResults = this.getStorage()?.memoryMath?.results.sort((a,b) => a.time-b.time)
+            return this.addScores(sortedResults)
+          },
+          kahootResult() {
+            return this.addScores(this.getStorage()?.kahoot?.results)
+          },
+          combinedResult() {
+            const kahootMap = new Map(this.kahootResult.map(r => ([r.competitor, r.score])))
+            const memoryMathMap = new Map(this.memoryMathResult.map(r => ([r.competitor, r.score])))
+            const sandRunMap = new Map(this.sandRunResult.map(r => ([r.competitor, r.score])))
+            const results = []
+            for (const competitor of this.competitors) {
+              const kahoot = kahootMap.get(competitor.name) ?? 0
+              const memoryMath = memoryMathMap.get(competitor.name) ?? 0
+              const sandRun = sandRunMap.get(competitor.name) ?? 0
+              results.push({
+                competitor: competitor.name,
+                kahoot,
+                memoryMath,
+                sandRun,
+                totalPoints: kahoot+memoryMath+sandRun
+              })
+            }
+            return results.sort((a,b) => b.totalPoints-a.totalPoints)
           },
           currentTimer() {
             let timeElapsed = 0
@@ -259,6 +353,21 @@
             const rt = this.getStorage()
             const curr = rt.sandRun.current.find(c => c.competitor === name)
             curr.missedBalls += count
+            this.saveStorage(rt)
+          },
+          finishMemoryMath(name) {
+            const rt = this.getStorage()
+            const curr = rt.memoryMath.results.push({
+              competitor: name,
+              time: new Date().getTime()
+            })
+            this.saveStorage(rt)
+          },
+          finishKahoot(name) {
+            const rt = this.getStorage()
+            const curr = rt.kahoot.results.push({
+              competitor: name,
+            })
             this.saveStorage(rt)
           }
         }

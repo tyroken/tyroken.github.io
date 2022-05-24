@@ -17,7 +17,7 @@ input, button {
 }
 
 input[type=checkbox] {
-  transform: scale(2);
+  transform: scale(3);
   margin-right: 20px;
 }
 
