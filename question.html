@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Fun?</title>
+    <style>
+    :root {
+      --main-bg-color: #5f86ad;
+      --test-color: #541a5f;
+    }
+
+    body {
+      width: 100%;
+      height: 100%;
+      background-color: var(--main-bg-color);
+      margin: 5rem 0 0 5rem;
+      font-size: 25px;
+    }
+
+    input, button {
+      height: 2rem;
+      vertical-align: middle;
+      margin-right: 20px;
+    }
+
+    input[type=checkbox] {
+      transform: scale(2);
+      margin-right: 20px;
+    }
+
+    label {
+      vertical-align: middle;
+    }
+
+    .app {
+      display: flex;
+      font-size: 50px;
+    }
+    
+    img {
+      max-height: 200px;
+    }
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      margin: 20px;
+    }
+    </style>
+  </head>
+  <body>
+    <script src="https://unpkg.com/vue@3"></script>
+
+    <div id="app" class="app">
+      <img src="duplo.jpg" />
+      <span>+</span>
+      <img src="boll.jpg" />
+      <span>*</span>
+      <img src="bestick.jpg" style="max-width: 400px;" />
+      <span>=</span>
+    </div>
+    
+    <script>
+      const { createApp } = Vue
+    
+      createApp({
+        data() {
+          return {
+            currentName: null,
+            checkedCompetitors: [],
+            storageSaveCounter: 0 // partly to get computed properties to updates
+          }
+        },
+        computed: {
+          competitors() {
+            return this.getStorage()?.competitors ?? []
+          }
+        },
+        methods: {
+          getStorage() {
+            return this.storageSaveCounter >= 0 && JSON.parse(localStorage.getItem('RT') ?? '{ "competitors": [] }')
+          },
+          saveStorage(rt) {
+            localStorage.setItem('RT', JSON.stringify(rt))
+            this.storageSaveCounter++
+          },
+          addCompetitor () {
+            const rt = this.getStorage()
+            rt.competitors.push({ name: this.currentName })
+            this.currentName = null
+            this.saveStorage(rt)
+          },
+        }
+      }).mount('#app')
+    </script>
+  </body>
+</html>
