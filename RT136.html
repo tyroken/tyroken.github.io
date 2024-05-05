@@ -235,6 +235,9 @@
 			
 			filtersDiv.appendChild(getDivWithLabelAndSelect(window.brothersSelect, 'Ansvarig broder'));
 			filtersDiv.appendChild(getDivWithLabelAndSelect(window.statusSelect, 'Status'));
+			const clearDiv = document.createElement('div');
+			clearDiv.style.clear = 'both';
+			filtersDiv.appendChild(clearDiv);
 		}
 		
 		function getDivWithLabelAndSelect(select, labelText) {
@@ -251,9 +254,6 @@
 		}
 		
 		function filtersUpdated() {
-			updateSelectAllNone(window.brothersSelect);
-			updateSelectAllNone(window.statusSelect);
-
 			const brotherOptions = Array.from(window.brothersSelect.selectedOptions).map(so => so.value);
 			const statusOptions = Array.from(window.statusSelect.selectedOptions).map(so => so.value);
 			const brotherIds = brotherOptions.flatMap(so => personIdsByBrother.get(so) ?? []);
@@ -296,16 +296,10 @@
 			selectElem.multiple = true;
 			const optionAllElem = document.createElement('option');
 			optionAllElem.value = 'all';
-			optionAllElem.innerHTML = 'Ingen filtrering (Välj alla)';
+			optionAllElem.innerHTML = 'Ingen filtrering';
 			optionAllElem.style.backgroundColor = '#ccd5cc';
 			optionAllElem.selected = true;
 			selectElem.appendChild(optionAllElem);
-			const optionNoneElem = document.createElement('option');
-			optionNoneElem.value = 'none';
-			optionNoneElem.innerHTML = 'Filtrera bort allt (Välj ingen)';
-			optionNoneElem.style.backgroundColor = '#d5cccc';
-			optionNoneElem.selected = false;
-			selectElem.appendChild(optionNoneElem);
 			
 			for (const optionValue of optionsIterable) {
 				const optionElem = document.createElement('option');
@@ -407,9 +401,10 @@
 			width: 80%;
 			height: 70%;
 		}
+		
 		#filters {
 			width: 80%;
-			height: 20%;
+			margin-bottom: 15px;
 		}
 		
 		#filters > * {
@@ -421,10 +416,12 @@
 			display: block;
 		}
 		
-		#filters select {
-			height: 80%;
+		@media (width > 700px) {
+			#filters select {
+				min-height: 120px;
+			}
 		}
-		
+
 		option {
 			padding: 2px;
 		}
