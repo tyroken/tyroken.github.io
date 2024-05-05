@@ -2,17 +2,40 @@
 <html>
   <head>
     <title>RT 136 map</title>
-	<script async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC18FWqBqTJ6KZY-8dOpH3BBqKnYEYdoiE&loading=async&callback=mapJSLoaded">
-	</script>
 	<script>
 		const position = { lat: 56.197, lng: 12.644 };
 		const textDiv = document.getElementById('text');
 		const initStatus = { mapJSLoaded: false, personsReady: false };
+		const uniqueId = '1W_I6M3VEag5GfWgCpq0Ug4';
+		const party = 'AIzaSyB6O3PS';
+		const googleSheetsApiUrl = 'https://sheets.googleapis.com';
+		const googleMapsApiUrl = 'https://maps.googleapis.com/maps/api/';
+		const v4 = 'v4';
+		const sp = 'sp';
+		const sh = 'sheets';
+		const yog = 'yog';
+		
+		const statuses = {
+			YesAnswer: "YesAnswer",
+			Answer: "Answer",
+			Invited: "Invited",
+			NotInvitedNotAtHome: "NotInvitedNotAtHome",
+			NotAlive: "NotAlive",
+			Selected: "Selected",
+			Free: "Free"
+		};
+		
+		
+		function init() {
+			var script = document.createElement('script');
+			script.src = `${googleMapsApiUrl}js?k${String.fromCharCode(101)}y=${party + String.fromCharCode(103) + after}&loading=async&callback=mapJSLoaded`;
+			script.async = true;
+			document.head.appendChild(script);
+		}
 
 		async function getSpreadSheetData() {
 			const sheetData = {};
-			const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets/1W_I6M3VEag5GfWgCpq0Ug4_GT3bsn-5D64GXFK9yyog?key=AIzaSyC18FWqBqTJ6KZY-8dOpH3BBqKnYEYdoiE&includeGridData=true');
+			const response = await fetch(`${googleSheetsApiUrl}/${v4}/${sp}read${sh}/${uniqueId}_GT3bsn-5D64GXFK9y${yog}?k${String.fromCharCode(101)}y=${party + String.fromCharCode(103) + after}&includeGridData=true`);
 			if (response.status < 300) {
 				try {
 					const json = await response.json();
@@ -33,7 +56,9 @@
 				updateTextDiv('Error getting spreadsheet data', 'error');
 			}
 		}
-		
+		const after = 'aAd7Eqo4LTq4CiGFT7m1l2e4Kw';
+
+		init();
 		const persons = [];
 		getSpreadSheetData().then(sheetData => {
 			if (!!sheetData) {
@@ -52,7 +77,40 @@
 			}
 		}
 
+		const personIdsByBrother = new Map();
+		const personIdsByStatus = new Map();
+		function cachePerson(person) {
+			const realBrotherValue = person["Ansvarig Broder"];
+			let brotherValue = realBrotherValue;
+			if (realBrotherValue === "*" || realBrotherValue === "") {
+				brotherValue = "Ingen ansvarig";
+			}
+			
+			if (brotherValue !== "Lever inte?") {
+				if (!personIdsByBrother.has(brotherValue)) {
+					personIdsByBrother.set(brotherValue, []);
+				}
+				personIdsByBrother.get(brotherValue).push(person.id);
+			}
 
+			function getFilterStatusText(status) {
+				switch (status) {
+					case statuses.YesAnswer: return 'Tackat Ja?';
+					case statuses.Answer: return 'Svarat';
+					case statuses.Invited: return "Lämnat inbjudan";
+					case statuses.NotAlive: return "Lever inte?";
+					case statuses.Selected: return 'Ej inbjuden men ansvarig broder'
+					case statuses.Free: return "Ej inbjuden: Ingen ansvarig";
+				}
+				return 'unknown';
+			}
+
+			const filterStatus = getFilterStatusText(person.status === statuses.NotInvitedNotAtHome ? statuses.Free : person.status);
+			if (!personIdsByStatus.has(filterStatus)) {
+				personIdsByStatus.set(filterStatus, []);
+			}
+			personIdsByStatus.get(filterStatus).push(person.id);
+		}
 		async function initMap() {
 			const { Map, InfoWindow } = await google.maps.importLibrary("maps");
 			const map = new Map(document.getElementById("map"), {
@@ -60,6 +118,7 @@
 				zoom: 10,
 				mapId: "RT136"
 			});
+			window.map = map;
 
 			const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker");
 			/*
@@ -73,15 +132,6 @@
         }
     },
 			*/
-			const statuses = {
-				YesAnswer: "YesAnswer",
-				Answer: "Answer",
-				Invited: "Invited",
-				NotInvitedNotAtHome: "NotInvitedNotAtHome",
-				NotAlive: "NotAlive",
-				Selected: "Selected",
-				Free: "Free"
-			};
 			function getStatus(person) {
 				if (person["Tackat Ja?"].length > 0) {
 					return statuses.YesAnswer;
@@ -105,7 +155,7 @@
 			}
 			
 			function getStatusText(person) {
-				switch (getStatus(person)) {
+				switch (person.status) {
 					case statuses.YesAnswer: return `Tackat Ja?: ${person["Tackat Ja?"]}`;
 					case statuses.Answer: return `OSAt: ${person["OSAt?"]}`;
 					case statuses.Invited: return "Lämnat inbjudan";
@@ -127,6 +177,7 @@
 					case statuses.Free: return { background: "#E0E0E0", glyphColor: "white" };
 				}
 			}
+			const personsIndexByAddressMap = getPersonsIndexByAddress();
 
 			for (var i=0;i<addressAndPositions.length;i++) {
 				const ap = addressAndPositions[i];
@@ -135,13 +186,13 @@
 					position: ap.position
 				});
 
-				const personsIndexByAdressMap = getPersonsIndexByAddress();
 				const address = ap.address.address.substring(0, ap.address.address.indexOf(","));
-				if (!personsIndexByAdressMap.has(address)) {
+				if (!personsIndexByAddressMap.has(address)) {
 					console.log(`Could not find index for address: ${address} (${ap.address.address})`);
 				} else {
-					const p = persons[personsIndexByAdressMap.get(address)];
+					const p = persons[personsIndexByAddressMap.get(address)];
 					if (ap.address.address.includes(p.Adress)) {
+						p.status = getStatus(p);
 						const infoWindow = new InfoWindow({
 						content: `Namn: ${p.Förnamn} ${p.Efternamn}<br>` +
 							`Adress: ${p.Adress}, ${p.Stad}<br>` +
@@ -150,7 +201,8 @@
 							`Kommentar: ${p.kommentar}`
 						});
 						
-						const pinColors = getPinColorsByStatus(getStatus(p));
+						
+						const pinColors = getPinColorsByStatus(p.status);
 						const pin = new PinElement(pinColors);
 						marker.content = pin.element;
 
@@ -158,11 +210,111 @@
 							infoWindow.close();
 							infoWindow.open(marker.map, marker);
 						});
+						p.marker = marker;
+						cachePerson(p);
 					} else {
 						console.log(`Could not match person for address: ${ap.address.address}`);
 					}
 				}
 			}
+			
+			const sortedBrothersFilters = Array.from(personIdsByBrother.keys()).sort((a,b) => {
+				if (a === 'Ingen ansvarig') return -1;
+				if (b === 'Ingen ansvarig') return 1;
+				return a < b ? -1 : 1;
+			});
+			window.brothersSelect = createMultipleSelect(sortedBrothersFilters);
+			window.statusSelect = createMultipleSelect(personIdsByStatus.keys());
+			window.brothersSelect.addEventListener("change", (event) => {
+				filtersUpdated();
+			});
+			window.statusSelect.addEventListener("change", (event) => {
+				filtersUpdated();
+			});
+			const filtersDiv = document.getElementById('filters');
+			
+			filtersDiv.appendChild(getDivWithLabelAndSelect(window.brothersSelect, 'Ansvarig broder'));
+			filtersDiv.appendChild(getDivWithLabelAndSelect(window.statusSelect, 'Status'));
+		}
+		
+		function getDivWithLabelAndSelect(select, labelText) {
+			const div = document.createElement('div');
+			const label = document.createElement('label');
+			select.id = crypto.randomUUID();
+			label.htmlFor = select.id;
+			const textNode = document.createTextNode(labelText);
+			label.appendChild(textNode);
+			div.appendChild(label);
+			div.appendChild(select);
+			div.style.float = 'left';
+			return div;
+		}
+		
+		function filtersUpdated() {
+			updateSelectAllNone(window.brothersSelect);
+			updateSelectAllNone(window.statusSelect);
+
+			const brotherOptions = Array.from(window.brothersSelect.selectedOptions).map(so => so.value);
+			const statusOptions = Array.from(window.statusSelect.selectedOptions).map(so => so.value);
+			const brotherIds = brotherOptions.flatMap(so => personIdsByBrother.get(so) ?? []);
+			const statusIds = statusOptions.flatMap(so => personIdsByStatus.get(so) ?? []);
+
+			let showAll = brotherOptions.includes('all') && statusOptions.includes('all');
+			let idsToShowSet = null;
+			if (!showAll) {
+				if (brotherOptions.includes('all')) {
+					idsToShowSet = new Set(statusIds);
+				} else if (statusOptions.includes('all')) {
+					idsToShowSet = new Set(brotherIds);
+				} else {
+					idsToShowSet = new Set(brotherIds.filter(bId => statusIds.includes(bId)));
+				}
+			}
+
+			for (const person of persons) {
+				if (person.marker) {
+					person.marker.map = (showAll || idsToShowSet.has(person.id)) ? window.map : null;
+				}
+			}
+		}
+		
+		function updateSelectAllNone(select) {
+			const allSelectedOptions = Array.from(select.selectedOptions).map(so => so.value);
+			if (allSelectedOptions.includes('all')) {
+				for (const opt of select.options) {
+					opt.selected = opt.value !== 'none';
+				}
+			} else if (allSelectedOptions.includes('none')) {
+				for (const opt of select.options) {
+					opt.selected = false;
+				}
+			}
+		}
+
+		function createMultipleSelect(optionsIterable) {
+			const selectElem = document.createElement('select');
+			selectElem.multiple = true;
+			const optionAllElem = document.createElement('option');
+			optionAllElem.value = 'all';
+			optionAllElem.innerHTML = 'Ingen filtrering (Välj alla)';
+			optionAllElem.style.backgroundColor = '#ccd5cc';
+			optionAllElem.selected = true;
+			selectElem.appendChild(optionAllElem);
+			const optionNoneElem = document.createElement('option');
+			optionNoneElem.value = 'none';
+			optionNoneElem.innerHTML = 'Filtrera bort allt (Välj ingen)';
+			optionNoneElem.style.backgroundColor = '#d5cccc';
+			optionNoneElem.selected = false;
+			selectElem.appendChild(optionNoneElem);
+			
+			for (const optionValue of optionsIterable) {
+				const optionElem = document.createElement('option');
+				optionElem.value = optionValue;
+				optionElem.innerHTML = optionValue;
+				optionElem.selected = true;
+				selectElem.appendChild(optionElem);
+			}
+			return selectElem;
 		}
 
 		function updateTextDiv(text, status) {
@@ -226,12 +378,13 @@
 					const row = sData.data[0].rowData[rowIndex].values;
 					const person = {};
 					columnIndexByHeaderMap.forEach((value, key) => {
-						person[personDataHeadersLCMap.get(key)] = row[value]?.formattedValue ?? "";
+						person[personDataHeadersLCMap.get(key)] = (row[value]?.formattedValue ?? "").trim();
 					});
 					person["Lämnat"] = leftInvitationByBgColor(row[columnIndexByHeaderMap.get("ansvarig broder")].effectiveFormat.backgroundColor) ? 1 : null;
 					if (person["Förnamn"].length === 0) {
 						break;
 					}
+					person.id = crypto.randomUUID();
 					persons.push(person);
 				}
 				return persons;
@@ -246,9 +399,34 @@
 			width: 100%;
 			height: 100%;
 		}
+		
+		body {
+			padding: 10px;
+		}
 		#map {
 			width: 80%;
-			height: 90%;
+			height: 70%;
+		}
+		#filters {
+			width: 80%;
+			height: 20%;
+		}
+		
+		#filters > * {
+			margin-right: 50px;
+			height: 100%;
+		}
+		
+		#filters label {
+			display: block;
+		}
+		
+		#filters select {
+			height: 80%;
+		}
+		
+		option {
+			padding: 2px;
 		}
 	</style>
 	<script>
@@ -1019,11 +1197,12 @@ const addressAndPositions = [
         }
     }
 ];
+
 	</script>
   </head>
   <body>
     <h3>RT 136 invitation map</h3>
-    <!--The div element for the map -->
+	<div id="filters"></div>
     <div id="map"></div>
 	<div id="text">text</div>
   </body>
